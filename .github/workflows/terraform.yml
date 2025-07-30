@@ -1,0 +1,118 @@
+name: "Terraform"
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  TF_VERSION: "1.13.0"
+  TFLINT_VERSION: "v0.58.0"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: "Terraform"
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Setup TFLint
+      uses: terraform-linters/setup-tflint@v4
+      with:
+        tflint_version: ${{ env.TFLINT_VERSION }}
+
+    - name: Terraform Format Check
+      id: fmt
+      run: terraform fmt -check
+      continue-on-error: true
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+      working-directory: ./test
+
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate
+      working-directory: ./test
+
+    - name: TFLint
+      id: tflint
+      run: |
+        tflint --init
+        tflint
+      working-directory: ./test
+
+    - name: Terraform Plan
+      id: plan
+      if: github.event_name == 'pull_request'
+      run: terraform plan -no-color
+      working-directory: ./test
+      continue-on-error: true
+
+    - name: Update Pull Request
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      env:
+        PLAN: "${{ steps.plan.outputs.stdout }}"
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization\`${{ steps.init.outcome }}\`
+          #### Terraform Validation\`${{ steps.validate.outcome }}\`
+          #### TFLint\`${{ steps.tflint.outcome }}\`
+          #### Terraform Plan\`${{ steps.plan.outcome }}\`
+          
+          <details><summary>Show Plan</summary>
+          
+          \`\`\`\n
+          ${process.env.PLAN || 'No changes. Infrastructure is up-to-date.'}
+          \`\`\`
+          
+          </details>`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+  security:
+    name: "Security Scan"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif' 
