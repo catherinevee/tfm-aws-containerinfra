@@ -28,11 +28,11 @@ variable "tags" {
 }
 
 # ==============================================================================
-# VPC Variables
+# Enhanced VPC Variables
 # ==============================================================================
 
 variable "vpc_config" {
-  description = "VPC configuration"
+  description = "VPC configuration with enhanced options"
   type = object({
     cidr_block           = string
     enable_dns_hostnames = optional(bool, true)
@@ -43,6 +43,30 @@ variable "vpc_config" {
     enable_vpn_gateway   = optional(bool, false)
     enable_flow_log      = optional(bool, false)
     flow_log_retention_in_days = optional(number, 7)
+    
+    # Enhanced VPC Configuration
+    enable_dhcp_options = optional(bool, false)
+    dhcp_options_domain_name = optional(string, null)
+    dhcp_options_domain_name_servers = optional(list(string), ["AmazonProvidedDNS"])
+    dhcp_options_ntp_servers = optional(list(string), [])
+    dhcp_options_netbios_name_servers = optional(list(string), [])
+    dhcp_options_netbios_node_type = optional(string, null)
+    
+    # Enhanced NAT Gateway Configuration
+    nat_gateway_destination_cidr_block = optional(string, "0.0.0.0/0")
+    nat_eip_tags = optional(map(string), {})
+    nat_gateway_tags = optional(map(string), {})
+    
+    # Enhanced Flow Log Configuration
+    flow_log_cloudwatch_iam_role_arn = optional(string, null)
+    flow_log_cloudwatch_log_group_kms_key_id = optional(string, null)
+    flow_log_max_aggregation_interval = optional(number, 600)
+    flow_log_traffic_type = optional(string, "ALL")
+    
+    # Enhanced Subnet Tags
+    public_subnet_tags = optional(map(string), {})
+    private_subnet_tags = optional(map(string), {})
+    database_subnet_tags = optional(map(string), {})
   })
   validation {
     condition     = can(cidrhost(var.vpc_config.cidr_block, 0))
@@ -73,11 +97,57 @@ variable "subnet_config" {
 }
 
 # ==============================================================================
-# EKS Variables
+# Enhanced Security Groups Configuration
+# ==============================================================================
+
+variable "security_groups_config" {
+  description = "Global security groups configuration"
+  type = object({
+    revoke_rules_on_delete = optional(bool, false)
+  })
+  default = {}
+}
+
+variable "security_groups" {
+  description = "Security groups configuration with enhanced options"
+  type = map(object({
+    name = string
+    description = string
+    vpc_id = optional(string, null)
+    revoke_rules_on_delete = optional(bool, null)
+    ingress_rules = optional(list(object({
+      description = optional(string, "")
+      from_port = number
+      to_port = number
+      protocol = string
+      cidr_blocks = optional(list(string), [])
+      security_groups = optional(list(string), [])
+      self = optional(bool, false)
+      ipv6_cidr_blocks = optional(list(string), [])
+      prefix_list_ids = optional(list(string), [])
+    })), [])
+    egress_rules = optional(list(object({
+      description = optional(string, "")
+      from_port = number
+      to_port = number
+      protocol = string
+      cidr_blocks = optional(list(string), ["0.0.0.0/0"])
+      security_groups = optional(list(string), [])
+      self = optional(bool, false)
+      ipv6_cidr_blocks = optional(list(string), [])
+      prefix_list_ids = optional(list(string), [])
+    })), [])
+    tags = optional(map(string), {})
+  }))
+  default = {}
+}
+
+# ==============================================================================
+# Enhanced EKS Variables
 # ==============================================================================
 
 variable "eks_config" {
-  description = "EKS cluster configuration"
+  description = "EKS cluster configuration with enhanced options"
   type = object({
     cluster_version = optional(string, "1.28")
     cluster_endpoint_private_access = optional(bool, true)
@@ -90,12 +160,53 @@ variable "eks_config" {
     create_cloudwatch_log_group = optional(bool, true)
     cluster_log_retention_in_days = optional(number, 7)
     cluster_log_types = optional(list(string), ["api", "audit", "authenticator", "controllerManager", "scheduler"])
+    
+    # Enhanced EKS Configuration
+    cluster_encryption_config = optional(list(object({
+      provider_key_arn = string
+      resources = list(string)
+    })), [])
+    
+    # Enhanced Security Group Configuration
+    cluster_security_group_additional_rules = optional(map(object({
+      description = string
+      protocol = string
+      from_port = number
+      to_port = number
+      type = string
+      cidr_blocks = optional(list(string), [])
+      security_groups = optional(list(string), [])
+      self = optional(bool, false)
+      source_node_security_group = optional(bool, false)
+      source_cluster_security_group = optional(bool, false)
+    })), {})
+    
+    node_security_group_additional_rules = optional(map(object({
+      description = string
+      protocol = string
+      from_port = number
+      to_port = number
+      type = string
+      cidr_blocks = optional(list(string), [])
+      security_groups = optional(list(string), [])
+      self = optional(bool, false)
+      source_node_security_group = optional(bool, false)
+      source_cluster_security_group = optional(bool, false)
+    })), {})
+    
+    # Enhanced Add-ons Configuration
+    cluster_addons = optional(map(object({
+      most_recent = optional(bool, true)
+      before_compute = optional(bool, false)
+      configuration_values = optional(string, "")
+      service_account_role_arn = optional(string, "")
+    })), {})
   })
   default = {}
 }
 
 variable "eks_node_groups" {
-  description = "EKS node groups configuration"
+  description = "EKS node groups configuration with enhanced options"
   type = map(object({
     name = string
     instance_types = list(string)
@@ -120,12 +231,71 @@ variable "eks_node_groups" {
       effect = string
     })), [])
     tags = optional(map(string), {})
+    
+    # Enhanced Node Group Configuration
+    use_name_prefix = optional(bool, true)
+    use_custom_launch_template = optional(bool, false)
+    create_launch_template = optional(bool, false)
+    launch_template_name = optional(string, null)
+    launch_template_use_name_prefix = optional(bool, true)
+    launch_template_description = optional(string, null)
+    
+    # Enhanced IAM Configuration
+    iam_role_name = optional(string, null)
+    iam_role_use_name_prefix = optional(bool, true)
+    iam_role_description = optional(string, null)
+    iam_role_path = optional(string, "/")
+    iam_role_permissions_boundary = optional(string, null)
+    iam_role_additional_policies = optional(list(string), [])
+    
+    # Enhanced Security Configuration
+    vpc_security_group_ids = optional(list(string), [])
+    cluster_security_group_id = optional(string, null)
+    
+    # Enhanced Monitoring Configuration
+    enable_monitoring = optional(bool, true)
+    enable_bootstrap_user_data = optional(bool, true)
+    bootstrap_extra_args = optional(string, null)
+    post_bootstrap_user_data = optional(string, null)
+    pre_bootstrap_user_data = optional(string, null)
+    
+    # Enhanced Networking Configuration
+    subnet_ids = optional(list(string), [])
+    private_ipv4_address = optional(string, null)
+    
+    # Enhanced Storage Configuration
+    block_device_mappings = optional(list(object({
+      device_name = string
+      ebs = optional(object({
+        delete_on_termination = optional(bool, true)
+        encrypted = optional(bool, true)
+        iops = optional(number, null)
+        kms_key_id = optional(string, null)
+        snapshot_id = optional(string, null)
+        throughput = optional(number, null)
+        volume_size = optional(number, null)
+        volume_type = optional(string, "gp3")
+      }), {})
+    })), [])
+    ebs_optimized = optional(bool, true)
+    enable_spot_instance = optional(bool, false)
+    spot_price = optional(string, null)
+    
+    # Enhanced Scaling Configuration
+    scaling_config = optional(object({
+      desired_size = optional(number, 2)
+      max_size = optional(number, 5)
+      min_size = optional(number, 1)
+    }), {})
+    
+    # Additional Configuration
+    additional_configuration = optional(map(any), null)
   }))
   default = {}
 }
 
 variable "eks_fargate_profiles" {
-  description = "EKS Fargate profiles configuration"
+  description = "EKS Fargate profiles configuration with enhanced options"
   type = map(object({
     name = string
     selectors = list(object({
@@ -134,22 +304,36 @@ variable "eks_fargate_profiles" {
     }))
     subnets = optional(list(string), [])
     tags = optional(map(string), {})
+    
+    # Enhanced Fargate Configuration
+    iam_role_name = optional(string, null)
+    iam_role_use_name_prefix = optional(bool, true)
+    iam_role_description = optional(string, null)
+    iam_role_path = optional(string, "/")
+    iam_role_permissions_boundary = optional(string, null)
+    iam_role_additional_policies = optional(list(string), [])
+    
+    # Additional Configuration
+    additional_configuration = optional(map(any), null)
   }))
   default = {}
 }
 
 # ==============================================================================
-# ECR Variables
+# Enhanced ECR Variables
 # ==============================================================================
 
 variable "ecr_repositories" {
-  description = "ECR repositories configuration"
+  description = "ECR repositories configuration with enhanced options"
   type = map(object({
     name = string
     image_tag_mutability = optional(string, "MUTABLE")
     scan_on_push = optional(bool, true)
     encryption_type = optional(string, "AES256")
     kms_key_id = optional(string, null)
+    force_delete = optional(bool, false)
+    registry_id = optional(string, null)
+    repository_policy = optional(string, null)
     lifecycle_policy = optional(object({
       max_image_count = optional(number, 30)
       max_age_days = optional(number, 90)
@@ -169,6 +353,27 @@ variable "enable_ecr_vulnerability_scanning" {
   default     = true
 }
 
+variable "ecr_vulnerability_scanning_config" {
+  description = "ECR vulnerability scanning configuration"
+  type = object({
+    scan_type = optional(string, "ENHANCED")
+    rules = optional(list(object({
+      scan_frequency = optional(string, "CONTINUOUS_SCAN")
+      repository_filter = object({
+        filter = string
+        filter_type = string
+      })
+    })), [{
+      scan_frequency = "CONTINUOUS_SCAN"
+      repository_filter = {
+        filter = "*"
+        filter_type = "WILDCARD"
+      }
+    }])
+  })
+  default = {}
+}
+
 variable "ecr_pull_through_cache_rules" {
   description = "ECR pull-through cache rules configuration"
   type = map(object({
@@ -180,40 +385,7 @@ variable "ecr_pull_through_cache_rules" {
 }
 
 # ==============================================================================
-# Security Groups Variables
-# ==============================================================================
-
-variable "security_groups" {
-  description = "Security groups configuration"
-  type = map(object({
-    name = string
-    description = string
-    vpc_id = optional(string, null)
-    ingress_rules = optional(list(object({
-      description = optional(string, "")
-      from_port = number
-      to_port = number
-      protocol = string
-      cidr_blocks = optional(list(string), [])
-      security_groups = optional(list(string), [])
-      self = optional(bool, false)
-    })), [])
-    egress_rules = optional(list(object({
-      description = optional(string, "")
-      from_port = number
-      to_port = number
-      protocol = string
-      cidr_blocks = optional(list(string), ["0.0.0.0/0"])
-      security_groups = optional(list(string), [])
-      self = optional(bool, false)
-    })), [])
-    tags = optional(map(string), {})
-  }))
-  default = {}
-}
-
-# ==============================================================================
-# Monitoring and Logging Variables
+# Enhanced Monitoring and Logging Variables
 # ==============================================================================
 
 variable "enable_cloudwatch_container_insights" {
@@ -222,10 +394,36 @@ variable "enable_cloudwatch_container_insights" {
   default     = true
 }
 
+variable "cloudwatch_container_insights_config" {
+  description = "CloudWatch Container Insights configuration"
+  type = object({
+    version = optional(string, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
+    additional_settings = optional(map(string), {})
+  })
+  default = {}
+}
+
 variable "enable_aws_load_balancer_controller" {
   description = "Enable AWS Load Balancer Controller"
   type        = bool
   default     = true
+}
+
+variable "aws_load_balancer_controller_config" {
+  description = "AWS Load Balancer Controller configuration"
+  type = object({
+    version = optional(string, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
+    additional_settings = optional(map(string), {})
+  })
+  default = {}
 }
 
 variable "enable_metrics_server" {
@@ -234,14 +432,40 @@ variable "enable_metrics_server" {
   default     = true
 }
 
+variable "metrics_server_config" {
+  description = "Metrics Server configuration"
+  type = object({
+    version = optional(string, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
+    additional_settings = optional(map(string), {})
+  })
+  default = {}
+}
+
 variable "enable_cluster_autoscaler" {
   description = "Enable Cluster Autoscaler"
   type        = bool
   default     = false
 }
 
+variable "cluster_autoscaler_config" {
+  description = "Cluster Autoscaler configuration"
+  type = object({
+    version = optional(string, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
+    additional_settings = optional(map(string), {})
+  })
+  default = {}
+}
+
 # ==============================================================================
-# Backup and Disaster Recovery Variables
+# Enhanced Backup and Disaster Recovery Variables
 # ==============================================================================
 
 variable "enable_velero_backup" {
@@ -251,18 +475,24 @@ variable "enable_velero_backup" {
 }
 
 variable "velero_backup_config" {
-  description = "Velero backup configuration"
+  description = "Velero backup configuration with enhanced options"
   type = object({
     backup_location_bucket = optional(string, "")
     backup_location_region = optional(string, "")
     schedule = optional(string, "0 2 * * *") # Daily at 2 AM
     retention_days = optional(number, 30)
+    version = optional(string, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
+    additional_settings = optional(map(string), {})
   })
   default = {}
 }
 
 # ==============================================================================
-# Network Policies Variables
+# Enhanced Network Policies Variables
 # ==============================================================================
 
 variable "enable_network_policies" {
@@ -281,8 +511,31 @@ variable "network_policy_provider" {
   }
 }
 
+variable "network_policy_config" {
+  description = "Network policy configuration"
+  type = object({
+    calico = optional(object({
+      version = optional(string, null)
+      timeout = optional(number, 300)
+      wait = optional(bool, true)
+      atomic = optional(bool, false)
+      cleanup_on_fail = optional(bool, false)
+      additional_settings = optional(map(string), {})
+    }), {})
+    cilium = optional(object({
+      version = optional(string, null)
+      timeout = optional(number, 300)
+      wait = optional(bool, true)
+      atomic = optional(bool, false)
+      cleanup_on_fail = optional(bool, false)
+      additional_settings = optional(map(string), {})
+    }), {})
+  })
+  default = {}
+}
+
 # ==============================================================================
-# Monitoring and Observability Variables
+# Enhanced Monitoring and Observability Variables
 # ==============================================================================
 
 variable "enable_prometheus_monitoring" {
@@ -292,11 +545,17 @@ variable "enable_prometheus_monitoring" {
 }
 
 variable "prometheus_config" {
-  description = "Prometheus configuration"
+  description = "Prometheus configuration with enhanced options"
   type = object({
     grafana_admin_password = string
     retention_days = optional(number, 15)
     storage_size = optional(string, "50Gi")
+    version = optional(string, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
+    additional_settings = optional(map(string), {})
   })
   default = {
     grafana_admin_password = "admin123"
@@ -309,6 +568,19 @@ variable "enable_kubernetes_dashboard" {
   default     = false
 }
 
+variable "kubernetes_dashboard_config" {
+  description = "Kubernetes Dashboard configuration"
+  type = object({
+    version = optional(string, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
+    additional_settings = optional(map(string), {})
+  })
+  default = {}
+}
+
 variable "enable_jaeger_tracing" {
   description = "Enable Jaeger distributed tracing"
   type        = bool
@@ -316,25 +588,34 @@ variable "enable_jaeger_tracing" {
 }
 
 variable "jaeger_config" {
-  description = "Jaeger configuration"
+  description = "Jaeger configuration with enhanced options"
   type = object({
     elasticsearch_url = string
     elasticsearch_username = string
     elasticsearch_password = string
+    version = optional(string, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
+    additional_settings = optional(map(string), {})
   })
   default = {
     elasticsearch_url = "http://elasticsearch:9200"
     elasticsearch_username = "elastic"
     elasticsearch_password = "changeme"
   }
-} 
+}
 
 # ==============================================================================
-# Enhanced ECS Configuration Variables
+# Legacy Variables (for backward compatibility)
 # ==============================================================================
+
+# These variables are kept for backward compatibility but are now deprecated
+# in favor of the enhanced configurations above
 
 variable "ecs_clusters" {
-  description = "Map of ECS clusters to create"
+  description = "Map of ECS clusters to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     name = string
     capacity_providers = optional(list(string), [])
@@ -366,7 +647,7 @@ variable "ecs_clusters" {
 }
 
 variable "ecs_services" {
-  description = "Map of ECS services to create"
+  description = "Map of ECS services to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     name = string
     cluster = string
@@ -406,71 +687,105 @@ variable "ecs_services" {
     deployment_circuit_breaker = optional(object({
       enable = bool
       rollback = bool
-    }), {})
+    }), null)
     deployment_controller = optional(object({
       type = string
-    }), {})
-    deployment_maximum_percent = optional(number, null)
-    deployment_minimum_healthy_percent = optional(number, null)
-    desired_count = optional(number, null)
-    enable_ecs_managed_tags = optional(bool, null)
-    health_check_grace_period_seconds = optional(number, null)
-    iam_role = optional(string, null)
-    load_balancer = optional(list(object({
-      elb_name = optional(string, null)
-      target_group_arn = optional(string, null)
-      container_name = string
-      container_port = number
-    })), [])
-    network_configuration = optional(object({
-      subnets = list(string)
-      security_groups = optional(list(string), [])
-      assign_public_ip = optional(bool, null)
-    }), {})
-    ordered_placement_strategy = optional(list(object({
-      type = string
-      field = optional(string, null)
-    })), [])
+    }), null)
     placement_constraints = optional(list(object({
       type = string
       expression = optional(string, null)
     })), [])
-    platform_version = optional(string, null)
-    propagate_tags = optional(string, null)
-    service_registries = optional(list(object({
-      registry_arn = string
-      port = optional(number, null)
-      container_port = optional(number, null)
-      container_name = optional(string, null)
+    placement_strategy = optional(list(object({
+      type = string
+      field = optional(string, null)
     })), [])
     tags = optional(map(string), {})
-    task_definition = string
-    wait_for_steady_state = optional(bool, null)
   }))
   default = {}
 }
 
 variable "ecs_task_definitions" {
-  description = "Map of ECS task definitions to create"
+  description = "Map of ECS task definitions to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     family = string
-    requires_compatibilities = optional(list(string), [])
-    network_mode = optional(string, "bridge")
-    cpu = optional(number, null)
-    memory = optional(number, null)
+    network_mode = optional(string, "awsvpc")
+    requires_compatibilities = optional(list(string), ["FARGATE"])
+    cpu = optional(number, 256)
+    memory = optional(number, 512)
     execution_role_arn = optional(string, null)
     task_role_arn = optional(string, null)
-    container_definitions = string
-    volume = optional(list(object({
+    container_definitions = list(object({
+      name = string
+      image = string
+      cpu = optional(number, null)
+      memory = optional(number, null)
+      memory_reservation = optional(number, null)
+      essential = optional(bool, true)
+      port_mappings = optional(list(object({
+        container_port = number
+        host_port = optional(number, null)
+        protocol = optional(string, "tcp")
+      })), [])
+      environment = optional(list(object({
+        name = string
+        value = string
+      })), [])
+      secrets = optional(list(object({
+        name = string
+        value_from = string
+      })), [])
+      log_configuration = optional(object({
+        log_driver = string
+        options = optional(map(string), {})
+        secret_options = optional(list(object({
+          name = string
+          value_from = string
+        })), [])
+      }), null)
+      mount_points = optional(list(object({
+        source_volume = string
+        container_path = string
+        read_only = optional(bool, false)
+      })), [])
+      volumes_from = optional(list(object({
+        source_container = string
+        read_only = optional(bool, false)
+      })), [])
+      depends_on = optional(list(object({
+        container_name = string
+        condition = string
+      })), [])
+      start_timeout = optional(number, null)
+      stop_timeout = optional(number, null)
+      user = optional(string, null)
+      working_directory = optional(string, null)
+      disable_networking = optional(bool, null)
+      privileged = optional(bool, null)
+      readonly_root_filesystem = optional(bool, null)
+      dns_servers = optional(list(string), [])
+      dns_search_domains = optional(list(string), [])
+      extra_hosts = optional(list(object({
+        hostname = string
+        ip_address = string
+      })), [])
+      docker_security_options = optional(list(string), [])
+      interactive = optional(bool, null)
+      pseudo_terminal = optional(bool, null)
+      system_controls = optional(list(object({
+        namespace = string
+        value = string
+      })), [])
+    }))
+    volumes = optional(list(object({
       name = string
       host_path = optional(string, null)
       docker_volume_configuration = optional(object({
-        scope = optional(string, null)
+        scope = string
         autoprovision = optional(bool, null)
         driver = optional(string, null)
         driver_opts = optional(map(string), {})
         labels = optional(map(string), {})
-      }), {})
+      }), null)
       efs_volume_configuration = optional(object({
         file_system_id = string
         root_directory = optional(string, null)
@@ -478,52 +793,28 @@ variable "ecs_task_definitions" {
         transit_encryption_port = optional(number, null)
         authorization_config = optional(object({
           access_point_id = optional(string, null)
-          iam = optional(string, null)
-        }), {})
-      }), {})
-      fsx_windows_file_server_volume_configuration = optional(object({
-        file_system_id = string
-        root_directory = string
-        authorization_config = object({
-          credentials_parameter = string
-          domain = string
-        })
-      }), {})
+          iam = optional(bool, null)
+        }), null)
+      }), null)
     })), [])
-    placement_constraints = optional(list(object({
-      type = string
-      expression = optional(string, null)
-    })), [])
-    proxy_configuration = optional(object({
-      type = string
-      container_name = string
-      properties = optional(map(string), {})
-    }), {})
-    inference_accelerator = optional(list(object({
-      device_name = string
-      device_type = string
-    })), [])
-    ephemeral_storage = optional(object({
-      size_in_gib = number
-    }), {})
     tags = optional(map(string), {})
   }))
   default = {}
 }
 
 variable "ecs_capacity_providers" {
-  description = "Map of ECS capacity providers to create"
+  description = "Map of ECS capacity providers to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     name = string
     auto_scaling_group_provider = object({
       auto_scaling_group_arn = string
+      managed_termination_protection = optional(string, "ENABLED")
       managed_scaling = optional(object({
-        maximum_scaling_step_size = optional(number, null)
-        minimum_scaling_step_size = optional(number, null)
-        status = optional(string, null)
-        target_capacity = optional(number, null)
+        maximum_scaling_step_size = optional(number, 1000)
+        minimum_scaling_step_size = optional(number, 1)
+        status = optional(string, "ENABLED")
+        target_capacity = optional(number, 100)
       }), {})
-      managed_termination_protection = optional(string, null)
     })
     tags = optional(map(string), {})
   }))
@@ -531,7 +822,7 @@ variable "ecs_capacity_providers" {
 }
 
 variable "ecs_cluster_capacity_providers" {
-  description = "Map of ECS cluster capacity providers to create"
+  description = "Map of ECS cluster capacity providers to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     cluster_name = string
     capacity_providers = list(string)
@@ -544,139 +835,45 @@ variable "ecs_cluster_capacity_providers" {
   default = {}
 }
 
-# ==============================================================================
-# Enhanced EKS Configuration Variables
-# ==============================================================================
-
 variable "eks_clusters" {
-  description = "Map of EKS clusters to create"
+  description = "Map of EKS clusters to create (DEPRECATED - use enhanced eks_config)"
   type = map(object({
     name = string
-    role_arn = string
     version = optional(string, "1.28")
-    enabled_cluster_log_types = optional(list(string), [])
-    encryption_config = optional(object({
-      provider = object({
-        key_arn = string
-      })
-      resources = list(string)
-    }), {})
-    kubernetes_network_config = optional(object({
-      service_ipv4_cidr = optional(string, null)
-      ip_family = optional(string, null)
-    }), {})
-    outpost_config = optional(object({
-      control_plane_instance_type = string
-      outpost_arns = list(string)
-    }), {})
+    role_arn = optional(string, null)
     vpc_config = object({
       subnet_ids = list(string)
-      endpoint_private_access = optional(bool, null)
-      endpoint_public_access = optional(bool, null)
-      public_access_cidrs = optional(list(string), [])
       security_group_ids = optional(list(string), [])
+      endpoint_private_access = optional(bool, true)
+      endpoint_public_access = optional(bool, true)
+      public_access_cidrs = optional(list(string), ["0.0.0.0/0"])
     })
-    tags = optional(map(string), {})
-  }))
-  default = {}
-}
-
-variable "eks_node_groups" {
-  description = "Map of EKS node groups to create"
-  type = map(object({
-    cluster_name = string
-    node_group_name = string
-    node_role_arn = string
-    subnet_ids = list(string)
-    ami_type = optional(string, null)
-    capacity_type = optional(string, null)
-    disk_size = optional(number, null)
-    force_update_version = optional(bool, null)
-    instance_types = optional(list(string), [])
-    labels = optional(map(string), {})
-    release_version = optional(string, null)
-    remote_access = optional(object({
-      ec2_ssh_key = optional(string, null)
-      source_security_group_ids = optional(list(string), [])
-    }), {})
-    scaling_config = object({
-      desired_size = number
-      max_size = number
-      min_size = number
-    })
-    taint = optional(list(object({
-      key = string
-      value = string
-      effect = string
+    enabled_cluster_log_types = optional(list(string), ["api", "audit", "authenticator", "controllerManager", "scheduler"])
+    encryption_config = optional(list(object({
+      provider_key_arn = string
+      resources = list(string)
     })), [])
-    update_config = optional(object({
-      max_unavailable = optional(number, null)
-      max_unavailable_percentage = optional(number, null)
-    }), {})
-    version = optional(string, null)
-    tags = optional(map(string), {})
-  }))
-  default = {}
-}
-
-variable "eks_fargate_profiles" {
-  description = "Map of EKS Fargate profiles to create"
-  type = map(object({
-    cluster_name = string
-    fargate_profile_name = string
-    pod_execution_role_arn = string
-    subnet_ids = list(string)
-    selectors = list(object({
-      namespace = string
-      labels = optional(map(string), {})
-    }))
     tags = optional(map(string), {})
   }))
   default = {}
 }
 
 variable "eks_addons" {
-  description = "Map of EKS addons to create"
+  description = "Map of EKS add-ons to create (DEPRECATED - use enhanced eks_config.cluster_addons)"
   type = map(object({
     cluster_name = string
     addon_name = string
     addon_version = optional(string, null)
-    resolve_conflicts = optional(string, null)
-    resolve_conflicts_on_create = optional(string, null)
-    resolve_conflicts_on_update = optional(string, null)
+    resolve_conflicts = optional(string, "OVERWRITE")
     service_account_role_arn = optional(string, null)
-    configuration_values = optional(string, null)
-    preserve = optional(bool, null)
-    tags = optional(map(string), {})
-  }))
-  default = {}
-}
-
-# ==============================================================================
-# Enhanced ECR Configuration Variables
-# ==============================================================================
-
-variable "ecr_repositories" {
-  description = "Map of ECR repositories to create"
-  type = map(object({
-    name = string
-    image_tag_mutability = optional(string, "MUTABLE")
-    image_scanning_configuration = optional(object({
-      scan_on_push = bool
-    }), {})
-    encryption_configuration = optional(object({
-      encryption_type = optional(string, "AES256")
-      kms_key = optional(string, null)
-    }), {})
-    lifecycle_policy = optional(string, null)
-    force_delete = optional(bool, null)
+    configuration_values = optional(string, "")
     tags = optional(map(string), {})
   }))
   default = {}
 }
 
 variable "ecr_lifecycle_policies" {
-  description = "Map of ECR lifecycle policies to create"
+  description = "Map of ECR lifecycle policies to create (DEPRECATED - use enhanced ecr_repositories)"
   type = map(object({
     repository = string
     policy = string
@@ -685,40 +882,28 @@ variable "ecr_lifecycle_policies" {
 }
 
 variable "ecr_registry_policy" {
-  description = "Map of ECR registry policies to create"
-  type = map(object({
-    policy = string
-  }))
-  default = {}
+  description = "ECR registry policy (DEPRECATED - use enhanced ecr_repositories)"
+  type        = string
+  default     = null
 }
 
 variable "ecr_registry_scanning_configuration" {
-  description = "Map of ECR registry scanning configurations to create"
-  type = map(object({
-    scan_type = string
+  description = "ECR registry scanning configuration (DEPRECATED - use enhanced ecr_vulnerability_scanning_config)"
+  type = object({
+    scan_type = optional(string, "ENHANCED")
     rules = optional(list(object({
-      repository_filters = list(object({
+      scan_frequency = optional(string, "CONTINUOUS_SCAN")
+      repository_filter = object({
         filter = string
         filter_type = string
-      }))
-      scan_frequency = string
+      })
     })), [])
-  }))
-  default = {}
-}
-
-variable "ecr_pull_through_cache_rules" {
-  description = "Map of ECR pull through cache rules to create"
-  type = map(object({
-    ecr_repository_prefix = string
-    upstream_registry_url = string
-    registry_id = optional(string, null)
-  }))
+  })
   default = {}
 }
 
 variable "ecr_repository_policies" {
-  description = "Map of ECR repository policies to create"
+  description = "Map of ECR repository policies to create (DEPRECATED - use enhanced ecr_repositories)"
   type = map(object({
     repository = string
     policy = string
@@ -726,76 +911,65 @@ variable "ecr_repository_policies" {
   default = {}
 }
 
-# ==============================================================================
-# Enhanced App Runner Configuration Variables
-# ==============================================================================
-
 variable "apprunner_services" {
-  description = "Map of App Runner services to create"
+  description = "Map of App Runner services to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     service_name = string
     source_configuration = object({
+      auto_deployments_enabled = optional(bool, true)
       authentication_configuration = optional(object({
         access_role_arn = optional(string, null)
         connection_arn = optional(string, null)
-      }), {})
-      auto_deployments_enabled = optional(bool, null)
+      }), null)
       code_repository = optional(object({
         code_configuration = optional(object({
-          configuration_source = optional(string, null)
-          configuration_values = optional(object({
-            build_command = optional(string, null)
-            port = optional(string, null)
-            runtime = optional(string, null)
-            runtime_environment_secrets = optional(map(string), {})
-            runtime_environment_variables = optional(map(string), {})
-            start_command = optional(string, null)
-          }), {})
-        }), {})
-        repository_url = string
+          configuration_source = string
+          configuration_values = optional(string, null)
+        }), null)
         source_code_version = object({
           type = string
           value = string
         })
-      }), {})
+        repository_url = string
+      }), null)
       image_repository = optional(object({
         image_configuration = optional(object({
           port = optional(string, null)
-          runtime_environment_secrets = optional(map(string), {})
           runtime_environment_variables = optional(map(string), {})
+          runtime_environment_secrets = optional(map(string), {})
           start_command = optional(string, null)
-        }), {})
+        }), null)
         image_identifier = string
         image_repository_type = string
-      }), {})
+      }), null)
     })
     instance_configuration = optional(object({
-      cpu = optional(string, null)
+      cpu = optional(string, "1024")
+      memory = optional(string, "2048")
       instance_role_arn = optional(string, null)
-      memory = optional(string, null)
     }), {})
     network_configuration = optional(object({
-      egress_configuration = optional(object({
-        egress_type = optional(string, null)
+      egress_configuration = object({
+        egress_type = string
         vpc_connector_arn = optional(string, null)
-      }), {})
+      })
       ingress_configuration = optional(object({
-        is_publicly_accessible = optional(bool, null)
-      }), {})
-    }), {})
+        is_publicly_accessible = optional(bool, true)
+      }), null)
+    }), null)
     observability_configuration = optional(object({
-      observability_enabled = optional(bool, null)
+      observability_enabled = optional(bool, true)
       trace_configuration = optional(object({
-        vendor = optional(string, null)
-      }), {})
-    }), {})
+        vendor = string
+      }), null)
+    }), null)
     tags = optional(map(string), {})
   }))
   default = {}
 }
 
 variable "apprunner_connections" {
-  description = "Map of App Runner connections to create"
+  description = "Map of App Runner connections to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     connection_name = string
     provider_type = string
@@ -805,7 +979,7 @@ variable "apprunner_connections" {
 }
 
 variable "apprunner_vpc_connectors" {
-  description = "Map of App Runner VPC connectors to create"
+  description = "Map of App Runner VPC connectors to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     vpc_connector_name = string
     subnets = list(string)
@@ -815,12 +989,8 @@ variable "apprunner_vpc_connectors" {
   default = {}
 }
 
-# ==============================================================================
-# Enhanced Copilot Configuration Variables
-# ==============================================================================
-
 variable "copilot_applications" {
-  description = "Map of Copilot applications to create"
+  description = "Map of Copilot applications to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     name = string
     tags = optional(map(string), {})
@@ -829,37 +999,30 @@ variable "copilot_applications" {
 }
 
 variable "copilot_environments" {
-  description = "Map of Copilot environments to create"
+  description = "Map of Copilot environments to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
-    app = string
     name = string
-    profile = optional(string, null)
-    region = optional(string, null)
+    app = string
+    type = string
     tags = optional(map(string), {})
   }))
   default = {}
 }
 
 variable "copilot_services" {
-  description = "Map of Copilot services to create"
+  description = "Map of Copilot services to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
-    app = string
     name = string
+    app = string
+    environment = string
     type = string
-    environment = optional(string, null)
-    profile = optional(string, null)
-    region = optional(string, null)
     tags = optional(map(string), {})
   }))
   default = {}
 }
 
-# ==============================================================================
-# Enhanced Kubernetes Configuration Variables
-# ==============================================================================
-
 variable "kubernetes_namespaces" {
-  description = "Map of Kubernetes namespaces to create"
+  description = "Map of Kubernetes namespaces to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     metadata = object({
       name = string
@@ -871,11 +1034,11 @@ variable "kubernetes_namespaces" {
 }
 
 variable "kubernetes_deployments" {
-  description = "Map of Kubernetes deployments to create"
+  description = "Map of Kubernetes deployments to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     metadata = object({
       name = string
-      namespace = optional(string, null)
+      namespace = string
       labels = optional(map(string), {})
       annotations = optional(map(string), {})
     })
@@ -902,17 +1065,23 @@ variable "kubernetes_deployments" {
               value = optional(string, null)
               value_from = optional(object({
                 field_ref = optional(object({
+                  api_version = optional(string, "v1")
                   field_path = string
-                }), {})
-                secret_key_ref = optional(object({
-                  name = string
-                  key = string
-                }), {})
+                }), null)
+                resource_field_ref = optional(object({
+                  container_name = optional(string, null)
+                  divisor = optional(string, null)
+                  resource = string
+                }), null)
                 config_map_key_ref = optional(object({
-                  name = string
+                  name = optional(string, null)
                   key = string
-                }), {})
-              }), {})
+                }), null)
+                secret_key_ref = optional(object({
+                  name = optional(string, null)
+                  key = string
+                }), null)
+              }), null)
             })), [])
             resources = optional(object({
               limits = optional(map(string), {})
@@ -922,60 +1091,57 @@ variable "kubernetes_deployments" {
               http_get = optional(object({
                 path = string
                 port = number
-              }), {})
+              }), null)
               tcp_socket = optional(object({
                 port = number
-              }), {})
-              exec = optional(object({
-                command = list(string)
-              }), {})
+              }), null)
               initial_delay_seconds = optional(number, null)
               period_seconds = optional(number, null)
               timeout_seconds = optional(number, null)
               failure_threshold = optional(number, null)
               success_threshold = optional(number, null)
-            }), {})
+            }), null)
             readiness_probe = optional(object({
               http_get = optional(object({
                 path = string
                 port = number
-              }), {})
+              }), null)
               tcp_socket = optional(object({
                 port = number
-              }), {})
-              exec = optional(object({
-                command = list(string)
-              }), {})
+              }), null)
               initial_delay_seconds = optional(number, null)
               period_seconds = optional(number, null)
               timeout_seconds = optional(number, null)
               failure_threshold = optional(number, null)
               success_threshold = optional(number, null)
-            }), {})
+            }), null)
+            volume_mounts = optional(list(object({
+              name = string
+              mount_path = string
+              read_only = optional(bool, false)
+            })), [])
           }))
           volumes = optional(list(object({
             name = string
-            empty_dir = optional(object({}), {})
-            persistent_volume_claim = optional(object({
-              claim_name = string
-              read_only = optional(bool, null)
-            }), {})
+            empty_dir = optional(object({}), null)
             config_map = optional(object({
               name = string
               items = optional(list(object({
                 key = string
                 path = string
-                mode = optional(number, null)
               })), [])
-            }), {})
+            }), null)
             secret = optional(object({
               secret_name = string
               items = optional(list(object({
                 key = string
                 path = string
-                mode = optional(number, null)
               })), [])
-            }), {})
+            }), null)
+            persistent_volume_claim = optional(object({
+              claim_name = string
+              read_only = optional(bool, false)
+            }), null)
           })), [])
         })
       })
@@ -985,20 +1151,20 @@ variable "kubernetes_deployments" {
 }
 
 variable "kubernetes_services" {
-  description = "Map of Kubernetes services to create"
+  description = "Map of Kubernetes services to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     metadata = object({
       name = string
-      namespace = optional(string, null)
+      namespace = string
       labels = optional(map(string), {})
       annotations = optional(map(string), {})
     })
     spec = object({
+      selector = map(string)
       type = optional(string, "ClusterIP")
-      selector = optional(map(string), {})
       ports = list(object({
         port = number
-        target_port = optional(number, null)
+        target_port = number
         protocol = optional(string, "TCP")
         name = optional(string, null)
         node_port = optional(number, null)
@@ -1014,19 +1180,19 @@ variable "kubernetes_services" {
       session_affinity_config = optional(object({
         client_ip = optional(object({
           timeout_seconds = number
-        }), {})
-      }), {})
+        }), null)
+      }), null)
     })
   }))
   default = {}
 }
 
 variable "kubernetes_config_maps" {
-  description = "Map of Kubernetes config maps to create"
+  description = "Map of Kubernetes ConfigMaps to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     metadata = object({
       name = string
-      namespace = optional(string, null)
+      namespace = string
       labels = optional(map(string), {})
       annotations = optional(map(string), {})
     })
@@ -1037,11 +1203,11 @@ variable "kubernetes_config_maps" {
 }
 
 variable "kubernetes_secrets" {
-  description = "Map of Kubernetes secrets to create"
+  description = "Map of Kubernetes Secrets to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     metadata = object({
       name = string
-      namespace = optional(string, null)
+      namespace = string
       labels = optional(map(string), {})
       annotations = optional(map(string), {})
     })
@@ -1052,115 +1218,24 @@ variable "kubernetes_secrets" {
   default = {}
 }
 
-# ==============================================================================
-# Enhanced Helm Configuration Variables
-# ==============================================================================
-
 variable "helm_releases" {
-  description = "Map of Helm releases to create"
+  description = "Map of Helm releases to create (DEPRECATED - use enhanced EKS configuration)"
   type = map(object({
     name = string
-    repository = optional(string, null)
+    repository = string
     chart = string
     version = optional(string, null)
-    namespace = optional(string, null)
-    create_namespace = optional(bool, null)
-    verify = optional(bool, null)
-    keyring = optional(string, null)
-    timeout = optional(number, null)
-    disable_webhooks = optional(bool, null)
-    disable_crd_hooks = optional(bool, null)
-    reuse_values = optional(bool, null)
-    reset_values = optional(bool, null)
-    force_update = optional(bool, null)
-    recreate_pods = optional(bool, null)
-    cleanup_on_fail = optional(bool, null)
-    max_history = optional(number, null)
-    atomic = optional(bool, null)
-    skip_crds = optional(bool, null)
-    render_subchart_notes = optional(bool, null)
-    disable_openapi_validation = optional(bool, null)
-    wait = optional(bool, null)
-    wait_for_jobs = optional(bool, null)
-    dependency_update = optional(bool, null)
-    replace = optional(bool, null)
-    description = optional(string, null)
-    postrender = optional(object({
-      binary_path = string
-    }), {})
+    namespace = string
+    create_namespace = optional(bool, false)
+    values = optional(list(string), [])
     set = optional(list(object({
       name = string
       value = string
-      type = optional(string, null)
     })), [])
-    set_sensitive = optional(list(object({
-      name = string
-      value = string
-      type = optional(string, null)
-    })), [])
-    set_string = optional(list(object({
-      name = string
-      value = string
-    })), [])
-    values = optional(list(string), [])
-    repository_username = optional(string, null)
-    repository_password = optional(string, null)
-    repository_ca_file = optional(string, null)
-    repository_cert_file = optional(string, null)
-    repository_key_file = optional(string, null)
-    repository_insecure = optional(bool, null)
-    devel = optional(bool, null)
-    debug = optional(bool, null)
-    chart = string
-    version = optional(string, null)
-    namespace = optional(string, null)
-    create_namespace = optional(bool, null)
-    verify = optional(bool, null)
-    keyring = optional(string, null)
-    timeout = optional(number, null)
-    disable_webhooks = optional(bool, null)
-    disable_crd_hooks = optional(bool, null)
-    reuse_values = optional(bool, null)
-    reset_values = optional(bool, null)
-    force_update = optional(bool, null)
-    recreate_pods = optional(bool, null)
-    cleanup_on_fail = optional(bool, null)
-    max_history = optional(number, null)
-    atomic = optional(bool, null)
-    skip_crds = optional(bool, null)
-    render_subchart_notes = optional(bool, null)
-    disable_openapi_validation = optional(bool, null)
-    wait = optional(bool, null)
-    wait_for_jobs = optional(bool, null)
-    dependency_update = optional(bool, null)
-    replace = optional(bool, null)
-    description = optional(string, null)
-    postrender = optional(object({
-      binary_path = string
-    }), {})
-    set = optional(list(object({
-      name = string
-      value = string
-      type = optional(string, null)
-    })), [])
-    set_sensitive = optional(list(object({
-      name = string
-      value = string
-      type = optional(string, null)
-    })), [])
-    set_string = optional(list(object({
-      name = string
-      value = string
-    })), [])
-    values = optional(list(string), [])
-    repository_username = optional(string, null)
-    repository_password = optional(string, null)
-    repository_ca_file = optional(string, null)
-    repository_cert_file = optional(string, null)
-    repository_key_file = optional(string, null)
-    repository_insecure = optional(bool, null)
-    devel = optional(bool, null)
-    debug = optional(bool, null)
+    timeout = optional(number, 300)
+    wait = optional(bool, true)
+    atomic = optional(bool, false)
+    cleanup_on_fail = optional(bool, false)
   }))
   default = {}
 } 
