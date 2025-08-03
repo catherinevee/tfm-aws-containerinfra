@@ -2,7 +2,26 @@
 
 A comprehensive Terraform module for provisioning production-ready container infrastructure on AWS, including EKS clusters, ECR repositories, security groups, and monitoring solutions with extensive customization options.
 
-## 🚀 Features
+## �️ Resource Map
+
+This module creates and manages the following AWS resources:
+
+| Resource Type | Purpose | Default Configuration |
+|--------------|---------|----------------------|
+| VPC | Network isolation and segmentation | Multi-AZ VPC with public/private subnets |
+| NAT Gateway | Private subnet internet access | One per AZ (configurable) |
+| Internet Gateway | Public subnet internet access | One per VPC |
+| Security Groups | Network access control | Strict default rules with customization |
+| EKS Cluster | Kubernetes orchestration | Production-ready with enhanced security |
+| EKS Node Groups | Container compute capacity | Mix of on-demand and spot instances |
+| ECR Repositories | Container image storage | Lifecycle policies and vulnerability scanning |
+| IAM Roles | Access control and permissions | Least privilege principle |
+| CloudWatch Logs | Centralized logging | Retention based on environment |
+| CloudWatch Metrics | Performance monitoring | Container Insights enabled |
+| KMS Keys | Encryption management | Auto-rotation enabled |
+| Load Balancer | Traffic distribution | ALB with HTTPS |
+
+## �🚀 Features
 
 ### Core Infrastructure
 - **Enhanced VPC Configuration**: Advanced VPC setup with DHCP options, NAT gateways, and flow logs
